@@ -4,6 +4,7 @@ import (
 	"kreditplus/controller"
 	"kreditplus/middleware"
 	"kreditplus/model"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,15 +16,25 @@ func SetupRouter() *gin.Engine {
 	r.Use(middleware.LoggerMiddleware())
 
 	api := r.Group("/api")
+	api.Use(middleware.RateLimitMiddleware()) 
 
-	api.Use(middleware.RateLimitMiddleware())
+	setupPublicRoutes(api)
+	setupProtectedRoutes(api)
+	setupAdminRoutes(api)
 
+	return r
+}
+
+func setupPublicRoutes(api *gin.RouterGroup) {
 	api.POST("/login", controller.Login)
 	api.POST("/refresh-token", controller.RefreshToken)
 	api.POST("/logout", controller.Logout)
+}
 
+func setupProtectedRoutes(api *gin.RouterGroup) {
 	protected := api.Group("/protected")
 	protected.Use(middleware.AuthMiddleware())
+
 	protected.GET("/profile", func(c *gin.Context) {
 		user, exists := c.Get("user")
 		if !exists {
@@ -37,11 +48,32 @@ func SetupRouter() *gin.Engine {
 		c.JSON(200, gin.H{"user": userDTO})
 	})
 
-	admin := protected.Group("/admin")
-	admin.Use(middleware.RoleMiddleware("admin"))
-	admin.GET("/dashboard", func(c *gin.Context) {
-		c.JSON(200, gin.H{"message": "Welcome Admin!"})
+	protected.PUT("/profile", func(c *gin.Context) {
+		user, exists := c.Get("user")
+		if !exists {
+			c.JSON(401, gin.H{"error": "Unauthorized"})
+			return
+		}
+		authUser := user.(model.User)
+		c.Params = append(c.Params, gin.Param{Key: "id", Value: strconv.Itoa(int(authUser.UserID))})
+		controller.UpdateUser(c)
 	})
+}
 
-	return r
+func setupAdminRoutes(api *gin.RouterGroup) {
+	admin := api.Group("/admin")
+	admin.Use(middleware.AuthMiddleware())
+	admin.Use(middleware.RoleMiddleware("admin"))
+
+	setupAdminUserRoutes(admin)
+}
+
+func setupAdminUserRoutes(admin *gin.RouterGroup) {
+	users := admin.Group("/users")
+
+	users.GET("/", controller.GetUser)
+	users.GET("/:id", controller.GetUserByID)
+	users.POST("/", controller.CreateUser)
+	users.PUT("/:id", controller.UpdateUser)
+	users.DELETE("/:id", controller.DeleteUser)
 }
