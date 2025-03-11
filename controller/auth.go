@@ -61,7 +61,7 @@ func RefreshToken(c *gin.Context) {
 	}
 
 	var user model.User
-	var newAccessToken, newRefreshToken string
+	var newAccessToken string
 
 	err = config.DB.Transaction(func(tx *gorm.DB) error {
 		_, claims, err := middleware.ValidateToken(refreshToken)
@@ -76,7 +76,7 @@ func RefreshToken(c *gin.Context) {
 			return err
 		}
 
-		newAccessToken, newRefreshToken, err = middleware.GenerateTokens(userID, userRole)
+		newAccessToken, _, err = middleware.GenerateTokens(userID, userRole)
 		if err != nil {
 			return err
 		}
@@ -89,11 +89,9 @@ func RefreshToken(c *gin.Context) {
 		return
 	}
 
-	c.SetCookie("refresh_token", newRefreshToken, 7*24*60*60, "/", "", false, true)
+	c.SetCookie("access_token", newAccessToken, 15*60, "/", "", false, true)
 
-	c.JSON(http.StatusOK, gin.H{
-		"access_token": newAccessToken,
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "New access generate successful"})
 }
 
 func Logout(c *gin.Context) {
