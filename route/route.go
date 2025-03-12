@@ -14,13 +14,12 @@ func SetupRouter() *gin.Engine {
 
 	r.Use(middleware.SecurityHeadersMiddleware())
 	r.Use(middleware.LoggerMiddleware())
+	r.Use(middleware.RateLimitMiddleware())
 
 	api := r.Group("/api")
-	api.Use(middleware.RateLimitMiddleware()) 
 
 	setupPublicRoutes(api)
 	setupProtectedRoutes(api)
-	setupAdminRoutes(api)
 
 	return r
 }
@@ -58,17 +57,20 @@ func setupProtectedRoutes(api *gin.RouterGroup) {
 		c.Params = append(c.Params, gin.Param{Key: "id", Value: strconv.Itoa(int(authUser.UserID))})
 		controller.UpdateUser(c)
 	})
+
+	setupUserRoutes(protected)
+	setupCustomerRoutes(protected)
 }
 
-func setupAdminRoutes(api *gin.RouterGroup) {
-	admin := api.Group("/admin")
-	admin.Use(middleware.AuthMiddleware())
-	admin.Use(middleware.RoleMiddleware("admin"))
+// func setupAdminRoutes(api *gin.RouterGroup) {
+// 	admin := api.Group("/admin")
+// 	admin.Use(middleware.AuthMiddleware())
+// 	admin.Use(middleware.RoleMiddleware("admin"))
 
-	setupAdminUserRoutes(admin)
-}
+// 	setupUserRoutes(admin)
+// }
 
-func setupAdminUserRoutes(admin *gin.RouterGroup) {
+func setupUserRoutes(admin *gin.RouterGroup) {
 	users := admin.Group("/users")
 
 	users.GET("/", controller.GetUser)
@@ -76,4 +78,14 @@ func setupAdminUserRoutes(admin *gin.RouterGroup) {
 	users.POST("/", controller.CreateUser)
 	users.PUT("/:id", controller.UpdateUser)
 	users.DELETE("/:id", controller.DeleteUser)
+}
+
+func setupCustomerRoutes(admin *gin.RouterGroup) {
+	customers := admin.Group("/customers")
+
+	customers.GET("/", controller.GetCustomer)
+	customers.GET("/:id", controller.GetCustomerByID)
+	customers.POST("/", controller.CreateCustomer)
+	customers.PUT("/:id", controller.UpdateCustomer)
+	customers.DELETE("/:id", controller.DeleteCustomer)
 }

@@ -1,9 +1,9 @@
 package controller
 
 import (
-	"errors"
 	"kreditplus/config"
 	"kreditplus/model"
+	"kreditplus/utils"
 	"net/http"
 	"strconv"
 
@@ -12,62 +12,47 @@ import (
 	"gorm.io/gorm"
 )
 
+type UserInput struct {
+	UserUsername string `json:"user_username" validate:"required,min=3"`
+	UserPassword string `json:"user_password,omitempty" validate:"omitempty,min=6"`
+	UserRole     string `json:"user_role,omitempty" validate:"omitempty,oneof=admin user"`
+}
+
 func CreateUser(c *gin.Context) {
 	authUser, exists := c.Get("user")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-	authUserModel := authUser.(model.User)
-
-	if authUserModel.UserRole != "admin" {
+	if !exists || authUser.(model.User).UserRole != "admin" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to use this function"})
 		return
 	}
 
-	var input struct {
-		UserUsername string `json:"user_username"`
-		UserPassword string `json:"user_password"`
-		UserRole     string `json:"user_role"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+	var input UserInput
+	if err := c.ShouldBindJSON(&input); err != nil || utils.Validate.Struct(input) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
 		return
 	}
 
-	if input.UserRole == "" {
-		input.UserRole = "user"
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.UserPassword), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
 	}
 
-	var user model.User
+	user := model.User{
+		UserUsername: input.UserUsername,
+		UserPassword: string(hashedPassword),
+		UserRole:     input.UserRole,
+	}
 
-	err := config.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("user_username = ?", input.UserUsername).First(&user).Error; err == nil {
-			return errors.New("username already exists")
-		} else if err != gorm.ErrRecordNotFound {
+	err = config.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&user).Error; err != nil {
 			return err
 		}
-
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.UserPassword), bcrypt.DefaultCost)
-		if err != nil {
-			return errors.New("failed to hash password")
-		}
-
-		newUser := model.User{
-			UserUsername: input.UserUsername,
-			UserPassword: string(hashedPassword),
-			UserRole:     input.UserRole,
-		}
-		if err := tx.Create(&newUser).Error; err != nil {
-			return err
-		}
-
 		return nil
 	})
 
 	if err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		utils.Logger.WithError(err).Error("Failed to create user")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "User creation failed"})
 		return
 	}
 
@@ -76,30 +61,18 @@ func CreateUser(c *gin.Context) {
 
 func GetUser(c *gin.Context) {
 	authUser, exists := c.Get("user")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-	authUserModel := authUser.(model.User)
-
-	if authUserModel.UserRole != "admin" {
+	if !exists || authUser.(model.User).UserRole != "admin" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to use this function"})
 		return
 	}
 
-	var users []model.User
-	var userDTOs []model.UserResponseDTO
-
-	limitStr := c.DefaultQuery("limit", "10")
-	pageStr := c.DefaultQuery("page", "1")
-
-	limit, err := strconv.Atoi(limitStr)
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	if err != nil || limit <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit value"})
 		return
 	}
 
-	page, err := strconv.Atoi(pageStr)
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
 	if err != nil || page <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page value"})
 		return
@@ -107,8 +80,13 @@ func GetUser(c *gin.Context) {
 
 	offset := (page - 1) * limit
 
-	config.DB.Limit(limit).Offset(offset).Find(&users)
+	var users []model.User
+	if err := config.DB.Limit(limit).Offset(offset).Find(&users).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch customers"})
+		return
+	}
 
+	var userDTOs []model.UserResponseDTO
 	for _, user := range users {
 		userDTOs = append(userDTOs, user.ToDTO())
 	}
@@ -126,10 +104,8 @@ func GetUserByID(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	authUserModel := authUser.(model.User)
 
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
@@ -141,14 +117,12 @@ func GetUserByID(c *gin.Context) {
 		return
 	}
 
-	if authUserModel.UserRole != "admin" && authUserModel.UserID != user.UserID {
+	if authUser.(model.User).UserRole != "admin" && authUser.(model.User).UserID != user.UserID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to view this user"})
 		return
 	}
 
-	userDTO := user.ToDTO()
-
-	c.JSON(http.StatusOK, userDTO)
+	c.JSON(http.StatusOK, gin.H{"user": user.ToDTO()})
 }
 
 func UpdateUser(c *gin.Context) {
@@ -157,10 +131,8 @@ func UpdateUser(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	authUserModel := authUser.(model.User)
 
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
@@ -172,19 +144,14 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	if authUserModel.UserRole != "admin" && authUserModel.UserID != user.UserID {
+	if authUser.(model.User).UserRole != "admin" && authUser.(model.User).UserID != user.UserID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: You can only update your own profile"})
 		return
 	}
 
-	var input struct {
-		UserUsername string `json:"user_username,omitempty"`
-		UserPassword string `json:"user_password,omitempty"`
-		UserRole     string `json:"user_role,omitempty"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+	var input UserInput
+	if err := c.ShouldBindJSON(&input); err != nil || utils.Validate.Struct(input) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
 		return
 	}
 
@@ -202,9 +169,9 @@ func UpdateUser(c *gin.Context) {
 	}
 
 	if input.UserRole != "" {
-		if authUserModel.UserRole == "admin" {
+		if authUser.(model.User).UserRole == "admin" {
 			user.UserRole = input.UserRole
-		} else if authUserModel.UserID == user.UserID {
+		} else {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: You cannot change your own role"})
 			return
 		}
@@ -227,19 +194,12 @@ func UpdateUser(c *gin.Context) {
 
 func DeleteUser(c *gin.Context) {
 	authUser, exists := c.Get("user")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-	authUserModel := authUser.(model.User)
-
-	if authUserModel.UserRole != "admin" {
+	if !exists || authUser.(model.User).UserRole != "admin" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to use this function"})
 		return
 	}
 
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
