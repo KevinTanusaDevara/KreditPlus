@@ -15,9 +15,9 @@ type Customer struct {
 	CustomerKTPPhoto    string     `gorm:"not null" json:"customer_ktp_photo"`
 	CustomerSelfiePhoto string     `gorm:"not null" json:"customer_selfie_photo"`
 	CustomerCreatedBy   uint       `gorm:"not null" json:"customer_created_by"`
-	CreatedByUser       User       `gorm:"foreignKey:CustomerCreatedBy;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
+	CreatedByUser       User       `gorm:"foreignKey:CustomerCreatedBy;references:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 	CustomerCreatedAt   time.Time  `gorm:"autoCreateTime" json:"customer_created_at"`
 	CustomerEditedBy    *uint      `json:"customer_edited_by"`
-	EditedByUser        *User      `gorm:"foreignKey:CustomerEditedBy;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
+	EditedByUser        *User      `gorm:"foreignKey:CustomerEditedBy;references:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 	CustomerEditedAt    *time.Time `json:"customer_edited_at"`
 }

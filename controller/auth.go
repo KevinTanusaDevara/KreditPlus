@@ -4,6 +4,7 @@ import (
 	"kreditplus/config"
 	"kreditplus/middleware"
 	"kreditplus/model"
+	"kreditplus/utils"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -11,19 +12,24 @@ import (
 	"gorm.io/gorm"
 )
 
-func Login(c *gin.Context) {
-	var input struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-	}
+type LoginInput struct {
+	Username string `json:"username" validate:"required"`
+	Password string `json:"password" validate:"required"`
+}
 
+func Login(c *gin.Context) {
+	var input LoginInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
 
-	var user model.User
+	if err := utils.Validate.Struct(input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
+	var user model.User
 	err := config.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("user_username = ?", input.Username).First(&user).Error; err != nil {
 			return err
