@@ -13,10 +13,18 @@ import (
 	"gorm.io/gorm"
 )
 
-type LimitInput struct {
+type CreateLimitInput struct {
 	LimitNIK    string  `json:"limit_nik" validate:"required,len=16,numeric"`
 	LimitTenor  int     `json:"limit_tenor" validate:"required"`
 	LimitAmount float64 `json:"limit_amount" validate:"required"`
+}
+
+type EditLimitInput struct {
+	LimitNIK             string  `json:"limit_nik" validate:"required,len=16,numeric"`
+	LimitTenor           int     `json:"limit_tenor" validate:"required"`
+	LimitAmount          float64 `json:"limit_amount" validate:"required"`
+	LimitUsedAmount      float64 `json:"limit_used_amount" validate:"required"`
+	LimitRemainingAmount float64 `json:"limit_remaining_amount" validate:"required"`
 }
 
 func CreateLimit(c *gin.Context) {
@@ -26,7 +34,7 @@ func CreateLimit(c *gin.Context) {
 		return
 	}
 
-	var input LimitInput
+	var input CreateLimitInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
@@ -44,11 +52,13 @@ func CreateLimit(c *gin.Context) {
 	}
 
 	limit := model.Limit{
-		LimitNIK:       input.LimitNIK,
-		LimitTenor:     input.LimitTenor,
-		LimitAmount:    input.LimitAmount,
-		LimitCreatedBy: authUser.(model.User).UserID,
-		LimitCreatedAt: time.Now(),
+		LimitNIK:             input.LimitNIK,
+		LimitTenor:           input.LimitTenor,
+		LimitAmount:          input.LimitAmount,
+		LimitUsedAmount:      0,
+		LimitRemainingAmount: input.LimitAmount,
+		LimitCreatedBy:       authUser.(model.User).UserID,
+		LimitCreatedAt:       time.Now(),
 	}
 
 	err := config.DB.Transaction(func(tx *gorm.DB) error {
@@ -168,7 +178,7 @@ func UpdateLimit(c *gin.Context) {
 		return
 	}
 
-	var input LimitInput
+	var input EditLimitInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
@@ -189,6 +199,14 @@ func UpdateLimit(c *gin.Context) {
 
 	if input.LimitAmount > 0 {
 		limit.LimitAmount = input.LimitAmount
+	}
+
+	if input.LimitUsedAmount > 0 {
+		limit.LimitUsedAmount = input.LimitUsedAmount
+	}
+
+	if input.LimitRemainingAmount > 0 {
+		limit.LimitRemainingAmount = input.LimitRemainingAmount
 	}
 
 	limit.LimitEditedBy = &authUserModel.UserID
