@@ -21,7 +21,7 @@ type CustomerInput struct {
 	CustomerLegalName  string  `form:"customer_legal_name" validate:"required"`
 	CustomerBirthPlace string  `form:"customer_birth_place" validate:"required"`
 	CustomerBirthDate  string  `form:"customer_birth_date" validate:"required,datetime=2006-01-02"`
-	CustomerSalary     float64 `form:"customer_salary" validate:"gte=1000000,lte=100000000"`
+	CustomerSalary     float64 `form:"customer_salary" validate:"required,gte=1000000,lte=100000000"`
 }
 
 func CreateCustomer(c *gin.Context) {
@@ -81,7 +81,6 @@ func CreateCustomer(c *gin.Context) {
 			if err := os.Remove(customer.CustomerSelfiePhoto); err != nil {
 				utils.Logger.Warnf("Failed to delete Selfie photo: %s", customer.CustomerSelfiePhoto)
 			}
-
 			return err
 		}
 		return nil
@@ -128,7 +127,14 @@ func GetCustomer(c *gin.Context) {
 	offset := (page - 1) * limit
 
 	var customers []model.Customer
-	if err := config.DB.Limit(limit).Offset(offset).Find(&customers).Error; err != nil {
+	err = config.DB.
+		Preload("CreatedByUser").
+		Preload("EditedByUser").
+		Limit(limit).
+		Offset(offset).
+		Find(&customers).Error
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch customers"})
 		return
 	}
@@ -149,13 +155,18 @@ func GetCustomerByID(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid customer ID"})
 		return
 	}
 
 	var customer model.Customer
-	if err := config.DB.First(&customer, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+	err = config.DB.
+		Preload("CreatedByUser").
+		Preload("EditedByUser").
+		First(&customer, id).Error
+
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Customer not found"})
 		return
 	}
 
@@ -188,6 +199,7 @@ func UpdateCustomer(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
+
 	if err := utils.Validate.Struct(input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -196,15 +208,19 @@ func UpdateCustomer(c *gin.Context) {
 	if input.CustomerNIK != "" {
 		customer.CustomerNIK = input.CustomerNIK
 	}
+
 	if input.CustomerFullName != "" {
 		customer.CustomerFullName = input.CustomerFullName
 	}
+
 	if input.CustomerLegalName != "" {
 		customer.CustomerLegalName = input.CustomerLegalName
 	}
+
 	if input.CustomerBirthPlace != "" {
 		customer.CustomerBirthPlace = input.CustomerBirthPlace
 	}
+
 	if input.CustomerBirthDate != "" {
 		parsedDate, err := time.Parse("2006-01-02", input.CustomerBirthDate)
 		if err != nil {
@@ -213,6 +229,7 @@ func UpdateCustomer(c *gin.Context) {
 		}
 		customer.CustomerBirthDate = parsedDate
 	}
+
 	if input.CustomerSalary > 0 {
 		customer.CustomerSalary = input.CustomerSalary
 	}
