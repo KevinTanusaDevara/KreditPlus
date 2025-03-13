@@ -9,9 +9,7 @@ import (
 
 func main() {
 	config.ConnectDB()
-	config.DB.AutoMigrate(&model.User{})
-	config.DB.AutoMigrate(&model.Customer{})
-	config.DB.AutoMigrate(&model.Limit{})
+	config.DB.AutoMigrate(&model.User{}, &model.Customer{}, &model.Limit{}, &model.Transaction{})
 
 	r := route.SetupRouter()
 	r.SetTrustedProxies([]string{"127.0.0.1"})
