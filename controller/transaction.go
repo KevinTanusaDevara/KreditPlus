@@ -335,9 +335,9 @@ func DeleteTransaction(c *gin.Context) {
 
 	if err != nil {
 		utils.Logger.WithFields(logrus.Fields{
-			"user_id":        authUserModel.UserID,
-			"transaction_id": transaction.TransactionID,
-			"error":          err.Error(),
+			"user_id":                     authUserModel.UserID,
+			"transaction_contract_number": transaction.TransactionContractNumber,
+			"error":                       err.Error(),
 		}).Error("Failed to delete transaction")
 
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete transaction"})
@@ -345,9 +345,9 @@ func DeleteTransaction(c *gin.Context) {
 	}
 
 	utils.Logger.WithFields(logrus.Fields{
-		"user_id":        authUserModel.UserID,
-		"transaction_id": transaction.TransactionID,
-	}).Infof("Transaction ID %d deleted successfully by User %d", transaction.TransactionID, authUserModel.UserID)
+		"user_id":                     authUserModel.UserID,
+		"transaction_contract_number": transaction.TransactionContractNumber,
+	}).Infof("Transaction Contract Number %s deleted successfully by User %d", transaction.TransactionContractNumber, authUserModel.UserID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Transaction deleted successfully"})
 }
