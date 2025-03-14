@@ -3,6 +3,7 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"time"
@@ -59,4 +60,13 @@ func SaveUploadedFile(c *gin.Context, formFieldName string, uploadDir string) (s
 
 	Logger.Infof("File uploaded successfully: %s (Size: %d bytes)", filePath, file.Size)
 	return filePath, nil
+}
+
+func GenerateContractNumber() string {
+	rand.Seed(time.Now().UnixNano())
+	randomNumber := rand.Intn(99999)
+	timestamp := time.Now().Format("20060102150405")
+	contractNumber := fmt.Sprintf("CTR-%s-%05d", timestamp, randomNumber)
+
+	return contractNumber
 }

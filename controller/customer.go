@@ -98,9 +98,9 @@ func CreateCustomer(c *gin.Context) {
 
 	utils.Logger.WithFields(logrus.Fields{
 		"user_id":      authUser.(model.User).UserID,
-		"customer_nik": input.CustomerNIK,
+		"customer_nik": customer.CustomerNIK,
 		"created_at":   time.Now(),
-	}).Info("Customer created successfully")
+	}).Infof("Customer NIK %s created successfully by User %d", customer.CustomerNIK, authUser.(model.User).UserID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Customer created successfully", "customer": customer})
 }
@@ -290,7 +290,7 @@ func UpdateCustomer(c *gin.Context) {
 		"user_id":      authUserModel.UserID,
 		"customer_nik": input.CustomerNIK,
 		"created_at":   time.Now(),
-	}).Infof("Customer ID %d updated successfully by User %d", customer.CustomerID, authUserModel.UserID)
+	}).Infof("Customer NIK %s updated successfully by User %d", customer.CustomerNIK, authUserModel.UserID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Customer updated successfully", "customer": customer})
 }
@@ -339,7 +339,7 @@ func DeleteCustomer(c *gin.Context) {
 	if err != nil {
 		utils.Logger.WithFields(logrus.Fields{
 			"user_id":     authUserModel.UserID,
-			"customer_id": customer.CustomerID,
+			"customer_nik": customer.CustomerNIK,
 			"error":       err.Error(),
 		}).Error("Failed to delete customer")
 
@@ -349,9 +349,9 @@ func DeleteCustomer(c *gin.Context) {
 
 	utils.Logger.WithFields(logrus.Fields{
 		"user_id":     authUserModel.UserID,
-		"customer_id": customer.CustomerID,
+		"customer_nik": customer.CustomerNIK,
 		"deleted_at":  timeNow,
-	}).Infof("Customer ID %d deleted successfully by User %d", customer.CustomerID, authUserModel.UserID)
+	}).Infof("Customer NIK %s deleted successfully by User %d", customer.CustomerNIK, authUserModel.UserID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Customer deleted successfully"})
 }

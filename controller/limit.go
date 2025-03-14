@@ -80,9 +80,9 @@ func CreateLimit(c *gin.Context) {
 
 	utils.Logger.WithFields(logrus.Fields{
 		"user_id":    authUser.(model.User).UserID,
-		"limit_nik":  input.LimitNIK,
+		"limit_nik":  limit.LimitNIK,
 		"created_at": time.Now(),
-	}).Info("Limit created successfully")
+	}).Infof("Limit NIK %s created successfully by User %d", limit.LimitNIK, authUser.(model.User).UserID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Limit created successfully", "limit": limit})
 }
@@ -233,7 +233,7 @@ func UpdateLimit(c *gin.Context) {
 		"user_id":    authUserModel.UserID,
 		"limit_nik":  input.LimitNIK,
 		"created_at": time.Now(),
-	}).Infof("Limit ID %d updated successfully by User %d", limit.LimitID, authUserModel.UserID)
+	}).Infof("Limit NIK %s updated successfully by User %d", limit.LimitNIK, authUserModel.UserID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Limit updated successfully"})
 }
@@ -268,9 +268,9 @@ func DeleteLimit(c *gin.Context) {
 
 	if err != nil {
 		utils.Logger.WithFields(logrus.Fields{
-			"user_id":  authUserModel.UserID,
-			"limit_id": limit.LimitID,
-			"error":    err.Error(),
+			"user_id":   authUserModel.UserID,
+			"limit_nik": limit.LimitNIK,
+			"error":     err.Error(),
 		}).Error("Failed to delete limit")
 
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete limit"})
@@ -279,9 +279,9 @@ func DeleteLimit(c *gin.Context) {
 
 	utils.Logger.WithFields(logrus.Fields{
 		"user_id":    authUserModel.UserID,
-		"limit_id":   limit.LimitID,
+		"limit_nik":  limit.LimitNIK,
 		"deleted_at": timeNow,
-	}).Infof("Limit ID %d deleted successfully by User %d", limit.LimitID, authUserModel.UserID)
+	}).Infof("Limit NIK %s deleted successfully by User %d", limit.LimitNIK, authUserModel.UserID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Limit deleted successfully"})
 }

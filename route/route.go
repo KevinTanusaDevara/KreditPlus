@@ -61,6 +61,7 @@ func setupProtectedRoutes(api *gin.RouterGroup) {
 	setupUserRoutes(protected)
 	setupCustomerRoutes(protected)
 	setupLimitRoutes(protected)
+	setupTransactionRoutes(protected)
 }
 
 // func setupAdminRoutes(api *gin.RouterGroup) {
@@ -99,4 +100,14 @@ func setupLimitRoutes(admin *gin.RouterGroup) {
 	limits.POST("/", controller.CreateLimit)
 	limits.PUT("/:id", controller.UpdateLimit)
 	limits.DELETE("/:id", controller.DeleteLimit)
+}
+
+func setupTransactionRoutes(admin *gin.RouterGroup) {
+	transactions := admin.Group("/transactions")
+
+	transactions.GET("/", controller.GetTransaction)
+	transactions.GET("/:id", controller.GetTransactionByID)
+	transactions.POST("/", controller.CreateTransaction)
+	transactions.PUT("/:id", controller.UpdateTransaction)
+	transactions.DELETE("/:id", controller.DeleteTransaction)
 }
