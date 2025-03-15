@@ -1,7 +1,10 @@
 package repository
 
 import (
+	"errors"
 	"kreditplus/internal/domain"
+	"kreditplus/internal/utils"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -25,18 +28,28 @@ func NewTransactionRepository(db *gorm.DB) TransactionRepository {
 }
 
 func (r *transactionRepository) WithTransaction(fn func(tx *gorm.DB) error) error {
-	tx := r.db.Begin()
-	if tx.Error != nil {
-		return tx.Error
-	}
+	const maxRetries = 3
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		tx := r.db.Begin()
+		if tx.Error != nil {
+			return tx.Error
+		}
 
-	err := fn(tx)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
+		err := fn(tx)
+		if err != nil {
+			tx.Rollback()
 
-	return tx.Commit().Error
+			if err.Error() == "database is locked" || err.Error() == "deadlock detected" {
+				utils.Logger.Warnf("Deadlock detected. Retrying transaction %d/%d", attempt+1, maxRetries)
+				time.Sleep(time.Millisecond * 100)
+				continue
+			}
+			return err
+		}
+
+		return tx.Commit().Error
+	}
+	return errors.New("failed to process transaction after multiple retries")
 }
 
 func (r *transactionRepository) CreateTransactionWithTx(tx *gorm.DB, transaction *domain.Transaction) error {
