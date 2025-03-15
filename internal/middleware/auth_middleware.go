@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"kreditplus/config"
-	"kreditplus/model"
+	"kreditplus/internal/domain"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -40,7 +40,7 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		userID := uint(userIDFloat)
 
-		var user model.User
+		var user domain.User
 		if err := config.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
 			c.Abort()

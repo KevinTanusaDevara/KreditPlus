@@ -1,102 +1,97 @@
-package controller
+package handler
 
 import (
-	"kreditplus/config"
-	"kreditplus/model"
-	"kreditplus/utils"
+	"fmt"
+	"kreditplus/internal/domain"
+	"kreditplus/internal/usecase"
+	"kreditplus/internal/utils"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"gorm.io/gorm"
 )
 
-type CreateLimitInput struct {
-	LimitNIK    string  `json:"limit_nik" validate:"required,len=16,numeric"`
-	LimitTenor  int     `json:"limit_tenor" validate:"required"`
-	LimitAmount float64 `json:"limit_amount" validate:"required"`
+type LimitHandler struct {
+	usecase usecase.LimitUsecase
 }
 
-type EditLimitInput struct {
-	LimitNIK             string  `json:"limit_nik" validate:"required,len=16,numeric"`
-	LimitTenor           int     `json:"limit_tenor" validate:"required"`
-	LimitAmount          float64 `json:"limit_amount" validate:"required"`
-	LimitUsedAmount      float64 `json:"limit_used_amount" validate:"required"`
-	LimitRemainingAmount float64 `json:"limit_remaining_amount" validate:"required"`
+func NewLimitHandler(usecase usecase.LimitUsecase) *LimitHandler {
+	return &LimitHandler{usecase: usecase}
 }
 
-func CreateLimit(c *gin.Context) {
+func (h *LimitHandler) CreateLimit(c *gin.Context) {
 	authUser, exists := c.Get("user")
 	if !exists {
+		utils.Logger.Warn("Unauthorized access attempt to CreateLimit")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	var input CreateLimitInput
+	var input domain.CreateLimitInput
 	if err := c.ShouldBindJSON(&input); err != nil {
+		utils.Logger.Warn("Invalid request format for creating limit")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
 
 	if err := utils.Validate.Struct(input); err != nil {
+		utils.Logger.Warnf("Validation error: %s", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	var customer model.Customer
-	if err := config.DB.Where("customer_nik = ?", input.LimitNIK).First(&customer).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Customer not found"})
+	customer, err := h.usecase.GetCustomerByNIK(input.LimitNIK)
+	if err != nil {
+		utils.Logger.WithFields(logrus.Fields{
+			"customer_nik": input.LimitNIK,
+			"error":        err.Error(),
+		}).Warn("Customer not found")
+		c.JSON(http.StatusNotFound, gin.H{"error": "Customer NIK not found"})
 		return
 	}
 
-	limit := model.Limit{
-		LimitNIK:             input.LimitNIK,
+	limit := domain.Limit{
+		LimitNIK:             customer.CustomerNIK,
 		LimitTenor:           input.LimitTenor,
 		LimitAmount:          input.LimitAmount,
 		LimitUsedAmount:      0,
 		LimitRemainingAmount: input.LimitAmount,
-		LimitCreatedBy:       authUser.(model.User).UserID,
+		LimitCreatedBy:       authUser.(domain.User).UserID,
 		LimitCreatedAt:       time.Now(),
 	}
 
-	err := config.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&limit).Error; err != nil {
-			return err
-		}
-		return nil
-	})
-
+	err = h.usecase.CreateLimit(limit)
 	if err != nil {
 		utils.Logger.WithFields(logrus.Fields{
-			"user_id": authUser.(model.User).UserID,
+			"user_id": authUser.(domain.User).UserID,
 			"error":   err.Error(),
 		}).Error("Failed to create limit")
-
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create limit"})
 		return
 	}
 
 	utils.Logger.WithFields(logrus.Fields{
-		"user_id":    authUser.(model.User).UserID,
+		"user_id":    authUser.(domain.User).UserID,
 		"limit_nik":  limit.LimitNIK,
 		"created_at": time.Now(),
-	}).Infof("Limit NIK %s created successfully by User %d", limit.LimitNIK, authUser.(model.User).UserID)
-
-	c.JSON(http.StatusOK, gin.H{"message": "Limit created successfully", "limit": limit})
+	}).Infof("Limit NIK %s created successfully by User %d", limit.LimitNIK, authUser.(domain.User).UserID)
+	c.JSON(http.StatusOK, gin.H{"message": "Limit created successfully"})
 }
 
-func GetLimit(c *gin.Context) {
+func (h *LimitHandler) GetLimit(c *gin.Context) {
 	_, exists := c.Get("user")
 	if !exists {
+		utils.Logger.Warn("Unauthorized access attempt to GetLimit")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
 	limit, err := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	if err != nil || limit <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit value"})
+		utils.Logger.Warn("Invalid limit value in request")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit"})
 		return
 	}
 
@@ -108,19 +103,22 @@ func GetLimit(c *gin.Context) {
 
 	offset := (page - 1) * limit
 
-	var limits []model.Limit
-	err = config.DB.
-		Preload("NIKCustomer").
-		Preload("CreatedByUser").
-		Preload("EditedByUser").
-		Limit(limit).
-		Offset(offset).
-		Find(&limits).Error
-
+	limits, err := h.usecase.GetAllLimits(limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch limits"})
+		utils.Logger.WithFields(logrus.Fields{
+			"limit":  limit,
+			"offset": offset,
+			"error":  err.Error(),
+		}).Error("Failed to retrieve limits")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve limits"})
 		return
 	}
+
+	utils.Logger.WithFields(logrus.Fields{
+		"page":   page,
+		"limit":  limit,
+		"limits": limits,
+	}).Info("Limits retrieved successfully")
 
 	c.JSON(http.StatusOK, gin.H{
 		"page":   page,
@@ -129,62 +127,75 @@ func GetLimit(c *gin.Context) {
 	})
 }
 
-func GetLimitByID(c *gin.Context) {
+func (h *LimitHandler) GetLimitByID(c *gin.Context) {
 	_, exists := c.Get("user")
 	if !exists {
+		utils.Logger.Warn("Unauthorized access attempt to GetLimitByID")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
+		utils.Logger.Warn("Invalid limit ID in request")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit ID"})
 		return
 	}
 
-	var limit model.Limit
-	err = config.DB.
-		Preload("NIKCustomer").
-		Preload("CreatedByUser").
-		Preload("EditedByUser").
-		First(&limit, id).Error
-
+	limit, err := h.usecase.GetLimitByID(uint(id))
 	if err != nil {
+		utils.Logger.WithFields(logrus.Fields{
+			"limit_id": id,
+			"error":    err.Error(),
+		}).Warn("Limit not found")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Limit not found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"limit": limit})
+	utils.Logger.WithFields(logrus.Fields{
+		"limit_id": limit.LimitID,
+	}).Info("Transaction retrieved successfully")
+
+	c.JSON(http.StatusOK, limit)
 }
 
-func UpdateLimit(c *gin.Context) {
+func (h *LimitHandler) UpdateLimit(c *gin.Context) {
 	authUser, exists := c.Get("user")
-	if !exists {
+	if !exists || authUser.(domain.User).UserRole != "admin" {
+		utils.Logger.Warn("Unauthorized access attempt to UpdateLimit")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	authUserModel := authUser.(model.User)
+	authUserModel := authUser.(domain.User)
 	timeNow := time.Now()
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
+		utils.Logger.Warn("Invalid user ID provided for update")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit ID"})
 		return
 	}
 
-	var limit model.Limit
-	if err := config.DB.First(&limit, id).Error; err != nil {
+	limit, err := h.usecase.GetLimitByID(uint(id))
+	if err != nil {
+		utils.Logger.WithFields(logrus.Fields{
+			"limit_id": id,
+			"error":    err.Error(),
+		}).Warn("Limit not found for update")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Limit not found"})
 		return
 	}
 
-	var input EditLimitInput
-	if err := c.ShouldBindJSON(&input); err != nil {
+	var input domain.EditLimitInput
+	if err := c.ShouldBind(&input); err != nil {
+		utils.Logger.Warn("Invalid request format for updating limit")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
 
+	fmt.Println(input)
 	if err := utils.Validate.Struct(input); err != nil {
+		utils.Logger.Warnf("Validation error: %s", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -201,50 +212,43 @@ func UpdateLimit(c *gin.Context) {
 		limit.LimitAmount = input.LimitAmount
 	}
 
-	if input.LimitUsedAmount > 0 {
-		limit.LimitUsedAmount = input.LimitUsedAmount
+	if input.LimitUsedAmount != nil && *input.LimitUsedAmount > 0 {
+		limit.LimitUsedAmount = *input.LimitUsedAmount
 	}
 
-	if input.LimitRemainingAmount > 0 {
-		limit.LimitRemainingAmount = input.LimitRemainingAmount
+	if input.LimitRemainingAmount != nil && *input.LimitRemainingAmount > 0 {
+		limit.LimitRemainingAmount = *input.LimitRemainingAmount
 	}
 
 	limit.LimitEditedBy = &authUserModel.UserID
 	limit.LimitEditedAt = &timeNow
 
-	err = config.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(&limit).Error; err != nil {
-			return err
-		}
-		return nil
-	})
-
+	err = h.usecase.UpdateLimit(*limit)
 	if err != nil {
 		utils.Logger.WithFields(logrus.Fields{
 			"user_id": authUserModel.UserID,
 			"error":   err.Error(),
-		}).Error("Failed to update limit")
-
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update limit"})
+		}).Error("Failed to update user")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	utils.Logger.WithFields(logrus.Fields{
-		"user_id":    authUserModel.UserID,
-		"limit_nik":  input.LimitNIK,
-		"created_at": time.Now(),
+		"user_id":          authUserModel.UserID,
+		"update_limit_nik": limit.LimitNIK,
+		"updated_at":       limit.LimitEditedAt,
 	}).Infof("Limit NIK %s updated successfully by User %d", limit.LimitNIK, authUserModel.UserID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Limit updated successfully"})
 }
 
-func DeleteLimit(c *gin.Context) {
+func (h *LimitHandler) DeleteLimit(c *gin.Context) {
 	authUser, exists := c.Get("user")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	authUserModel := authUser.(model.User)
+	authUserModel := authUser.(domain.User)
 	timeNow := time.Now()
 
 	id, err := strconv.Atoi(c.Param("id"))
@@ -253,26 +257,23 @@ func DeleteLimit(c *gin.Context) {
 		return
 	}
 
-	var limit model.Limit
-	if err := config.DB.First(&limit, id).Error; err != nil {
+	limit, err := h.usecase.GetLimitByID(uint(id))
+	if err != nil {
+		utils.Logger.WithFields(logrus.Fields{
+			"limit_id": id,
+			"error":    err.Error(),
+		}).Warn("Limit not found for update")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Limit not found"})
 		return
 	}
 
-	err = config.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Delete(&limit).Error; err != nil {
-			return err
-		}
-		return nil
-	})
-
+	err = h.usecase.DeleteLimit(uint(id))
 	if err != nil {
 		utils.Logger.WithFields(logrus.Fields{
 			"user_id":   authUserModel.UserID,
 			"limit_nik": limit.LimitNIK,
 			"error":     err.Error(),
-		}).Error("Failed to delete limit")
-
+		}).Error("Failed to delete customer")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete limit"})
 		return
 	}
@@ -282,6 +283,5 @@ func DeleteLimit(c *gin.Context) {
 		"limit_nik":  limit.LimitNIK,
 		"deleted_at": timeNow,
 	}).Infof("Limit NIK %s deleted successfully by User %d", limit.LimitNIK, authUserModel.UserID)
-
 	c.JSON(http.StatusOK, gin.H{"message": "Limit deleted successfully"})
 }

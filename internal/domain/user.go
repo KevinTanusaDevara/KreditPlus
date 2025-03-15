@@ -1,4 +1,4 @@
-package model
+package domain
 
 type User struct {
 	UserID       uint   `gorm:"primaryKey" json:"user_id"`
@@ -19,4 +19,10 @@ func (u *User) ToDTO() UserResponseDTO {
 		UserUsername: u.UserUsername,
 		UserRole:     u.UserRole,
 	}
+}
+
+type UserInput struct {
+	UserUsername string `json:"user_username" validate:"required,min=3"`
+	UserPassword string `json:"user_password,omitempty" validate:"omitempty,min=6"`
+	UserRole     string `json:"user_role,omitempty" validate:"omitempty,oneof=admin user"`
 }

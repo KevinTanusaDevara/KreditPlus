@@ -1,10 +1,10 @@
-package controller
+package handler
 
 import (
 	"html"
-	"kreditplus/config"
-	"kreditplus/model"
-	"kreditplus/utils"
+	"kreditplus/internal/domain"
+	"kreditplus/internal/usecase"
+	"kreditplus/internal/utils"
 	"net/http"
 	"os"
 	"strconv"
@@ -12,31 +12,33 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"gorm.io/gorm"
 )
 
-type CustomerInput struct {
-	CustomerNIK        string  `form:"customer_nik" validate:"required,len=16,numeric"`
-	CustomerFullName   string  `form:"customer_full_name" validate:"required"`
-	CustomerLegalName  string  `form:"customer_legal_name" validate:"required"`
-	CustomerBirthPlace string  `form:"customer_birth_place" validate:"required"`
-	CustomerBirthDate  string  `form:"customer_birth_date" validate:"required,datetime=2006-01-02"`
-	CustomerSalary     float64 `form:"customer_salary" validate:"required,gte=1000000,lte=100000000"`
+type CustomerHandler struct {
+	usecase usecase.CustomerUsecase
 }
 
-func CreateCustomer(c *gin.Context) {
+func NewCustomerHandler(usecase usecase.CustomerUsecase) *CustomerHandler {
+	return &CustomerHandler{usecase: usecase}
+}
+
+func (h *CustomerHandler) CreateCustomer(c *gin.Context) {
 	authUser, exists := c.Get("user")
 	if !exists {
+		utils.Logger.Warn("Unauthorized access attempt to CreateCustomer")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	var input CustomerInput
+	var input domain.CustomerInput
 	if err := c.ShouldBind(&input); err != nil {
+		utils.Logger.Warn("Invalid request format for creating customer")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
+
 	if err := utils.Validate.Struct(input); err != nil {
+		utils.Logger.Warnf("Validation error: %s", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -49,17 +51,19 @@ func CreateCustomer(c *gin.Context) {
 
 	ktpPhotoPath, err := utils.SaveUploadedFile(c, "customer_ktp_photo", "uploads/ktp")
 	if err != nil {
+		utils.Logger.Warn("Failed to upload KTP photo")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to upload KTP photo"})
 		return
 	}
 
 	selfiePhotoPath, err := utils.SaveUploadedFile(c, "customer_selfie_photo", "uploads/selfie")
 	if err != nil {
+		utils.Logger.Warn("Failed to upload selfie photo")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to upload selfie photo"})
 		return
 	}
 
-	customer := model.Customer{
+	customer := domain.Customer{
 		CustomerNIK:         input.CustomerNIK,
 		CustomerFullName:    html.EscapeString(input.CustomerFullName),
 		CustomerLegalName:   html.EscapeString(input.CustomerLegalName),
@@ -68,53 +72,40 @@ func CreateCustomer(c *gin.Context) {
 		CustomerSalary:      input.CustomerSalary,
 		CustomerKTPPhoto:    ktpPhotoPath,
 		CustomerSelfiePhoto: selfiePhotoPath,
-		CustomerCreatedBy:   authUser.(model.User).UserID,
+		CustomerCreatedBy:   authUser.(domain.User).UserID,
 		CustomerCreatedAt:   time.Now(),
 	}
 
-	err = config.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&customer).Error; err != nil {
-			if err := os.Remove(customer.CustomerKTPPhoto); err != nil {
-				utils.Logger.Warnf("Failed to delete KTP photo: %s", customer.CustomerKTPPhoto)
-			}
-
-			if err := os.Remove(customer.CustomerSelfiePhoto); err != nil {
-				utils.Logger.Warnf("Failed to delete Selfie photo: %s", customer.CustomerSelfiePhoto)
-			}
-			return err
-		}
-		return nil
-	})
-
+	err = h.usecase.CreateCustomer(customer)
 	if err != nil {
 		utils.Logger.WithFields(logrus.Fields{
-			"user_id": authUser.(model.User).UserID,
+			"user_id": authUser.(domain.User).UserID,
 			"error":   err.Error(),
 		}).Error("Failed to create customer")
-
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create customer"})
 		return
 	}
 
 	utils.Logger.WithFields(logrus.Fields{
-		"user_id":      authUser.(model.User).UserID,
+		"user_id":      authUser.(domain.User).UserID,
 		"customer_nik": customer.CustomerNIK,
-		"created_at":   time.Now(),
-	}).Infof("Customer NIK %s created successfully by User %d", customer.CustomerNIK, authUser.(model.User).UserID)
-
-	c.JSON(http.StatusOK, gin.H{"message": "Customer created successfully", "customer": customer})
+		"created_at":   customer.CustomerCreatedAt,
+	}).Infof("Customer NIK %s created successfully by User %d", customer.CustomerNIK, authUser.(domain.User).UserID)
+	c.JSON(http.StatusOK, gin.H{"message": "Customer created successfully"})
 }
 
-func GetCustomer(c *gin.Context) {
+func (h *CustomerHandler) GetCustomer(c *gin.Context) {
 	_, exists := c.Get("user")
 	if !exists {
+		utils.Logger.Warn("Unauthorized access attempt to GetCustomer")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
 	limit, err := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	if err != nil || limit <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit value"})
+		utils.Logger.Warn("Invalid limit value in request")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit"})
 		return
 	}
 
@@ -126,18 +117,22 @@ func GetCustomer(c *gin.Context) {
 
 	offset := (page - 1) * limit
 
-	var customers []model.Customer
-	err = config.DB.
-		Preload("CreatedByUser").
-		Preload("EditedByUser").
-		Limit(limit).
-		Offset(offset).
-		Find(&customers).Error
-
+	customers, err := h.usecase.GetAllCustomers(limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch customers"})
+		utils.Logger.WithFields(logrus.Fields{
+			"limit":  limit,
+			"offset": offset,
+			"error":  err.Error(),
+		}).Error("Failed to retrieve customers")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve customers"})
 		return
 	}
+
+	utils.Logger.WithFields(logrus.Fields{
+		"page":      page,
+		"limit":     limit,
+		"customers": customers,
+	}).Info("Customers retrieved successfully")
 
 	c.JSON(http.StatusOK, gin.H{
 		"page":      page,
@@ -146,61 +141,74 @@ func GetCustomer(c *gin.Context) {
 	})
 }
 
-func GetCustomerByID(c *gin.Context) {
+func (h *CustomerHandler) GetCustomerByID(c *gin.Context) {
 	_, exists := c.Get("user")
 	if !exists {
+		utils.Logger.Warn("Unauthorized access attempt to GetCustomerByID")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
+		utils.Logger.Warn("Invalid customer ID in request")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid customer ID"})
 		return
 	}
 
-	var customer model.Customer
-	err = config.DB.
-		Preload("CreatedByUser").
-		Preload("EditedByUser").
-		First(&customer, id).Error
-
+	customer, err := h.usecase.GetCustomerByID(uint(id))
 	if err != nil {
+		utils.Logger.WithFields(logrus.Fields{
+			"customer_id": id,
+			"error":       err.Error(),
+		}).Warn("Customer not found")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Customer not found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"customer": customer})
+	utils.Logger.WithFields(logrus.Fields{
+		"customer_id": id,
+	}).Info("Customer retrieved successfully")
+
+	c.JSON(http.StatusOK, customer)
 }
 
-func UpdateCustomer(c *gin.Context) {
+func (h *CustomerHandler) UpdateCustomer(c *gin.Context) {
 	authUser, exists := c.Get("user")
 	if !exists {
+		utils.Logger.Warn("Unauthorized access attempt to UpdateCustomer")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	authUserModel := authUser.(model.User)
+	authUserModel := authUser.(domain.User)
 	timeNow := time.Now()
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
+		utils.Logger.Warn("Invalid customer ID provided for update")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid customer ID"})
 		return
 	}
 
-	var customer model.Customer
-	if err := config.DB.First(&customer, id).Error; err != nil {
+	customer, err := h.usecase.GetCustomerByID(uint(id))
+	if err != nil {
+		utils.Logger.WithFields(logrus.Fields{
+			"customer_id": id,
+			"error":       err.Error(),
+		}).Warn("Customer not found for update")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Customer not found"})
 		return
 	}
 
-	var input CustomerInput
+	var input domain.CustomerInput
 	if err := c.ShouldBind(&input); err != nil {
+		utils.Logger.Warn("Invalid request format for updating customer")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
 
 	if err := utils.Validate.Struct(input); err != nil {
+		utils.Logger.Warnf("Validation error: %s", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -224,6 +232,7 @@ func UpdateCustomer(c *gin.Context) {
 	if input.CustomerBirthDate != "" {
 		parsedDate, err := time.Parse("2006-01-02", input.CustomerBirthDate)
 		if err != nil {
+			utils.Logger.Warn("Invalid birth date format for update")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid birth date format"})
 			return
 		}
@@ -236,8 +245,7 @@ func UpdateCustomer(c *gin.Context) {
 
 	if _, err := c.FormFile("customer_ktp_photo"); err == nil {
 		if customer.CustomerKTPPhoto != "" {
-			err := os.Remove(customer.CustomerKTPPhoto)
-			if err != nil {
+			if err := os.Remove(customer.CustomerKTPPhoto); err != nil {
 				utils.Logger.Warnf("Failed to delete old KTP photo: %s", customer.CustomerKTPPhoto)
 			}
 		}
@@ -252,8 +260,7 @@ func UpdateCustomer(c *gin.Context) {
 
 	if _, err := c.FormFile("customer_selfie_photo"); err == nil {
 		if customer.CustomerSelfiePhoto != "" {
-			err := os.Remove(customer.CustomerSelfiePhoto)
-			if err != nil {
+			if err := os.Remove(customer.CustomerSelfiePhoto); err != nil {
 				utils.Logger.Warnf("Failed to delete old Selfie photo: %s", customer.CustomerSelfiePhoto)
 			}
 		}
@@ -269,40 +276,32 @@ func UpdateCustomer(c *gin.Context) {
 	customer.CustomerEditedBy = &authUserModel.UserID
 	customer.CustomerEditedAt = &timeNow
 
-	err = config.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(&customer).Error; err != nil {
-			return err
-		}
-		return nil
-	})
-
+	err = h.usecase.UpdateCustomer(*customer)
 	if err != nil {
 		utils.Logger.WithFields(logrus.Fields{
 			"user_id": authUserModel.UserID,
 			"error":   err.Error(),
 		}).Error("Failed to update customer")
-
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update customer"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	utils.Logger.WithFields(logrus.Fields{
 		"user_id":      authUserModel.UserID,
-		"customer_nik": input.CustomerNIK,
-		"created_at":   time.Now(),
+		"customer_nik": customer.CustomerNIK,
+		"updated_at":   customer.CustomerEditedAt,
 	}).Infof("Customer NIK %s updated successfully by User %d", customer.CustomerNIK, authUserModel.UserID)
 
-	c.JSON(http.StatusOK, gin.H{"message": "Customer updated successfully", "customer": customer})
+	c.JSON(http.StatusOK, gin.H{"message": "Customer updated successfully"})
 }
 
-func DeleteCustomer(c *gin.Context) {
+func (h *CustomerHandler) DeleteCustomer(c *gin.Context) {
 	authUser, exists := c.Get("user")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	authUserModel := authUser.(model.User)
-	timeNow := time.Now()
+	authUserModel := authUser.(domain.User)
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
@@ -310,8 +309,12 @@ func DeleteCustomer(c *gin.Context) {
 		return
 	}
 
-	var customer model.Customer
-	if err := config.DB.First(&customer, id).Error; err != nil {
+	customer, err := h.usecase.GetCustomerByID(uint(id))
+	if err != nil {
+		utils.Logger.WithFields(logrus.Fields{
+			"customer_id": id,
+			"error":       err.Error(),
+		}).Warn("Customer not found for update")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Customer not found"})
 		return
 	}
@@ -328,30 +331,20 @@ func DeleteCustomer(c *gin.Context) {
 		}
 	}
 
-	err = config.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Delete(&customer).Error; err != nil {
-			return err
-		}
-
-		return nil
-	})
-
+	err = h.usecase.DeleteCustomer(uint(id))
 	if err != nil {
 		utils.Logger.WithFields(logrus.Fields{
-			"user_id":     authUserModel.UserID,
+			"user_id":      authUserModel.UserID,
 			"customer_nik": customer.CustomerNIK,
-			"error":       err.Error(),
+			"error":        err.Error(),
 		}).Error("Failed to delete customer")
-
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete customer"})
 		return
 	}
 
 	utils.Logger.WithFields(logrus.Fields{
-		"user_id":     authUserModel.UserID,
+		"user_id":      authUserModel.UserID,
 		"customer_nik": customer.CustomerNIK,
-		"deleted_at":  timeNow,
 	}).Infof("Customer NIK %s deleted successfully by User %d", customer.CustomerNIK, authUserModel.UserID)
-
 	c.JSON(http.StatusOK, gin.H{"message": "Customer deleted successfully"})
 }
