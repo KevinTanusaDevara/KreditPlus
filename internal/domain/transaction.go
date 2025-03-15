@@ -1,4 +1,4 @@
-package model
+package domain
 
 import "time"
 
@@ -21,4 +21,13 @@ type Transaction struct {
 	TransactionEditedBy       *uint      `json:"transaction_edited_by"`
 	EditedByUser              *User      `gorm:"foreignKey:TransactionEditedBy;references:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 	TransactionEditedAt       *time.Time `json:"transaction_edited_at"`
+}
+
+type TransactionInput struct {
+	TransactionNIK         string  `json:"transaction_nik" validate:"required,len=16,numeric"`
+	TransactionOTR         float64 `json:"transaction_otr" validate:"required"`
+	TransactionAdminFee    float64 `json:"transaction_admin_fee" validate:"required"`
+	TransactionInstallment float64 `json:"transaction_installment" validate:"required"`
+	TransactionInterest    float64 `json:"transaction_interest" validate:"required"`
+	TransactionAssetName   string  `json:"transaction_asset_name" validate:"required"`
 }

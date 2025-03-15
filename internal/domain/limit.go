@@ -1,8 +1,6 @@
-package model
+package domain
 
-import (
-	"time"
-)
+import "time"
 
 type Limit struct {
 	LimitID              uint       `gorm:"primaryKey" json:"limit_id"`
@@ -18,4 +16,18 @@ type Limit struct {
 	LimitEditedBy        *uint      `json:"limit_edited_by"`
 	EditedByUser         *User      `gorm:"foreignKey:LimitEditedBy;references:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 	LimitEditedAt        *time.Time `json:"limit_edited_at"`
+}
+
+type CreateLimitInput struct {
+	LimitNIK    string  `json:"limit_nik" validate:"required,len=16,numeric"`
+	LimitTenor  int     `json:"limit_tenor" validate:"required"`
+	LimitAmount float64 `json:"limit_amount" validate:"required"`
+}
+
+type EditLimitInput struct {
+	LimitNIK             string  `json:"limit_nik" validate:"required,len=16,numeric"`
+	LimitTenor           int     `json:"limit_tenor" validate:"required"`
+	LimitAmount          float64 `json:"limit_amount" validate:"required"`
+	LimitUsedAmount      *float64 `json:"limit_used_amount" validate:"required"`
+	LimitRemainingAmount *float64 `json:"limit_remaining_amount" validate:"required"`
 }

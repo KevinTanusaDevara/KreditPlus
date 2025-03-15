@@ -2,14 +2,14 @@ package main
 
 import (
 	"kreditplus/config"
-	"kreditplus/model"
-	"kreditplus/route"
+	"kreditplus/internal/domain"
+	"kreditplus/internal/route"
 	"log"
 )
 
 func main() {
 	config.ConnectDB()
-	config.DB.AutoMigrate(&model.User{}, &model.Customer{}, &model.Limit{}, &model.Transaction{})
+	config.DB.AutoMigrate(&domain.User{}, &domain.Customer{}, &domain.Limit{}, &domain.Transaction{})
 
 	r := route.SetupRouter()
 	r.SetTrustedProxies([]string{"127.0.0.1"})

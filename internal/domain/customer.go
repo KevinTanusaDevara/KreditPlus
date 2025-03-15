@@ -1,4 +1,4 @@
-package model
+package domain
 
 import (
 	"time"
@@ -20,4 +20,13 @@ type Customer struct {
 	CustomerEditedBy    *uint      `json:"customer_edited_by"`
 	EditedByUser        *User      `gorm:"foreignKey:CustomerEditedBy;references:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 	CustomerEditedAt    *time.Time `json:"customer_edited_at"`
+}
+
+type CustomerInput struct {
+	CustomerNIK        string  `form:"customer_nik" validate:"required,len=16,numeric"`
+	CustomerFullName   string  `form:"customer_full_name" validate:"required"`
+	CustomerLegalName  string  `form:"customer_legal_name" validate:"required"`
+	CustomerBirthPlace string  `form:"customer_birth_place" validate:"required"`
+	CustomerBirthDate  string  `form:"customer_birth_date" validate:"required,datetime=2006-01-02"`
+	CustomerSalary     float64 `form:"customer_salary" validate:"required,gte=1000000,lte=100000000"`
 }
