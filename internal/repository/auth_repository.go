@@ -20,7 +20,11 @@ func NewAuthRepository(db *gorm.DB) AuthRepository {
 
 func (r *authRepository) FindUserByUsername(username string) (*domain.User, error) {
 	var user domain.User
-	if err := r.db.Where("user_username = ?", username).First(&user).Error; err != nil {
+	err := r.db.Where("user_username = ?", username).First(&user).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return &user, nil

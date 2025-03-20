@@ -34,6 +34,11 @@ func (u *transactionUsecase) CreateTransactionWithLimitUpdate(userID uint, custo
 	input.TransactionNIK = utils.SanitizeString(input.TransactionNIK)
 	input.TransactionAssetName = utils.SanitizeString(input.TransactionAssetName)
 
+	input.TransactionOTR = utils.SanitizeNumberFloat64(input.TransactionOTR)
+	input.TransactionAdminFee = utils.SanitizeNumberFloat64(input.TransactionAdminFee)
+	input.TransactionInstallment = utils.SanitizeNumberFloat64(input.TransactionInstallment)
+	input.TransactionInterest = utils.SanitizeNumberFloat64(input.TransactionInterest)
+
 	const maxRetries = 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		err := u.transactionRepo.WithTransaction(func(tx *gorm.DB) error {
@@ -125,6 +130,11 @@ func (u *transactionUsecase) GetCustomerByNIK(nik string) (*domain.Customer, err
 func (u *transactionUsecase) UpdateTransactionWithLimitUpdate(userID uint, customer *domain.Customer, transaction *domain.Transaction, input domain.TransactionInput) error {
 	input.TransactionNIK = utils.SanitizeString(input.TransactionNIK)
 	input.TransactionAssetName = utils.SanitizeString(input.TransactionAssetName)
+
+	input.TransactionOTR = utils.SanitizeNumberFloat64(input.TransactionOTR)
+	input.TransactionAdminFee = utils.SanitizeNumberFloat64(input.TransactionAdminFee)
+	input.TransactionInstallment = utils.SanitizeNumberFloat64(input.TransactionInstallment)
+	input.TransactionInterest = utils.SanitizeNumberFloat64(input.TransactionInterest)
 
 	const maxRetries = 3
 	for attempt := 0; attempt < maxRetries; attempt++ {

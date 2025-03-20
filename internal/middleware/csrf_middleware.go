@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -31,7 +32,12 @@ func CSRFMiddleware() gin.HandlerFunc {
 			clientToken := c.GetHeader("X-CSRF-Token")
 			cookieToken, err := c.Cookie("csrf_token")
 
-			if err != nil || clientToken == "" || clientToken != cookieToken {
+			decodedClientToken, _ := url.QueryUnescape(clientToken)
+
+			logrus.Info("Decoded Client Token: ", decodedClientToken)
+			logrus.Info("Cookie Token: ", cookieToken)
+
+			if err != nil || clientToken == "" || decodedClientToken != cookieToken {
 				logrus.Warn("CSRF validation failed: Invalid token")
 				c.JSON(http.StatusForbidden, gin.H{"error": "Invalid CSRF token"})
 				c.Abort()

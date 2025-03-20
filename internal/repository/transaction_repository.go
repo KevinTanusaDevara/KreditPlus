@@ -12,7 +12,6 @@ import (
 type TransactionRepository interface {
 	WithTransaction(fn func(tx *gorm.DB) error) error
 	CreateTransactionWithTx(tx *gorm.DB, transaction *domain.Transaction) error
-	CreateTransaction(transaction *domain.Transaction) error
 	GetAllTransactions(transaction, offset int) ([]domain.Transaction, error)
 	GetTransactionByID(id uint) (*domain.Transaction, error)
 	UpdateTransactionWithTx(tx *gorm.DB, transaction *domain.Transaction) error
@@ -29,13 +28,15 @@ func NewTransactionRepository(db *gorm.DB) TransactionRepository {
 
 func (r *transactionRepository) WithTransaction(fn func(tx *gorm.DB) error) error {
 	const maxRetries = 3
+	var err error
+
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		tx := r.db.Begin()
 		if tx.Error != nil {
 			return tx.Error
 		}
 
-		err := fn(tx)
+		err = fn(tx)
 		if err != nil {
 			tx.Rollback()
 
@@ -46,18 +47,18 @@ func (r *transactionRepository) WithTransaction(fn func(tx *gorm.DB) error) erro
 			}
 			return err
 		}
-
 		return tx.Commit().Error
 	}
-	return errors.New("failed to process transaction after multiple retries")
+	return errors.New("failed to process transaction after multiple retries: " + err.Error())
 }
 
 func (r *transactionRepository) CreateTransactionWithTx(tx *gorm.DB, transaction *domain.Transaction) error {
-	return tx.Create(transaction).Error
-}
-
-func (r *transactionRepository) CreateTransaction(transaction *domain.Transaction) error {
-	return r.db.Create(transaction).Error
+	err := tx.Create(transaction).Error
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	return nil
 }
 
 func (r *transactionRepository) GetAllTransactions(limit, offset int) ([]domain.Transaction, error) {

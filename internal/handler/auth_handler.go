@@ -25,6 +25,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	if input.Username == "" || input.Password == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+
 	response, err := h.usecase.Login(input)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
@@ -76,5 +81,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 func (h *AuthHandler) Logout(c *gin.Context) {
 	c.SetCookie("access_token", "", -1, "/", "", false, true)
 	c.SetCookie("refresh_token", "", -1, "/", "", false, true)
+	c.SetCookie("csrf_token", "", -1, "/", "", false, true)
+
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }

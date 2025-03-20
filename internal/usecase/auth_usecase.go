@@ -29,7 +29,7 @@ func (u *authUsecase) Login(input domain.LoginInput) (*domain.AuthResponse, erro
 
 	user, err := u.repo.FindUserByUsername(input.Username)
 	if err != nil {
-		return nil, errors.New("invalid username or password")
+		return nil, err
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.UserPassword), []byte(input.Password)); err != nil {
@@ -68,3 +68,4 @@ func (u *authUsecase) RefreshToken(refreshToken string) (*domain.AuthResponse, e
 		Message:      "New access token generated",
 	}, nil
 }
+

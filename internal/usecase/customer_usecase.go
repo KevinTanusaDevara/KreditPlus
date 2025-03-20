@@ -32,9 +32,14 @@ func (u *customerUsecase) CreateCustomer(input domain.Customer) error {
 	input.CustomerKTPPhoto = utils.SanitizeString(input.CustomerKTPPhoto)
 	input.CustomerSelfiePhoto = utils.SanitizeString(input.CustomerSelfiePhoto)
 
+	input.CustomerBirthDate = utils.SanitizeDate(input.CustomerBirthDate)
+
+	input.CustomerSalary = utils.SanitizeNumberFloat64(input.CustomerSalary)
+
 	if input.CustomerNIK == "" || len(input.CustomerNIK) != 16 {
 		return errors.New("invalid NIK")
 	}
+
 	input.CustomerCreatedAt = time.Now()
 	return u.repo.CreateCustomer(&input)
 }
@@ -54,6 +59,10 @@ func (u *customerUsecase) UpdateCustomer(input domain.Customer) error {
 	input.CustomerBirthPlace = utils.SanitizeString(input.CustomerBirthPlace)
 	input.CustomerKTPPhoto = utils.SanitizeString(input.CustomerKTPPhoto)
 	input.CustomerSelfiePhoto = utils.SanitizeString(input.CustomerSelfiePhoto)
+
+	input.CustomerBirthDate = utils.SanitizeDate(input.CustomerBirthDate)
+
+	input.CustomerSalary = utils.SanitizeNumberFloat64(input.CustomerSalary)
 
 	if input.CustomerNIK != "" && len(input.CustomerNIK) != 16 {
 		return errors.New("NIK must be 16 numeric characters")

@@ -31,3 +31,8 @@ type EditLimitInput struct {
 	LimitUsedAmount      *float64 `json:"limit_used_amount" validate:"required"`
 	LimitRemainingAmount *float64 `json:"limit_remaining_amount" validate:"required"`
 }
+
+type LimitResponse struct {
+	LimitID     uint    `json:"limit_id"`
+	LimitAmount float64 `json:"limit_amount"`
+}

@@ -26,3 +26,9 @@ type UserInput struct {
 	UserPassword string `json:"user_password,omitempty" validate:"omitempty,min=6"`
 	UserRole     string `json:"user_role,omitempty" validate:"omitempty,oneof=admin user"`
 }
+
+type UserResponse struct {
+	UserID       uint   `json:"user_id"`
+	UserUsername string `json:"user_username"`
+	UserRole     string `json:"user_role"`
+}

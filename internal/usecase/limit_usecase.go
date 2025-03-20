@@ -29,6 +29,10 @@ func NewLimitUsecase(limitRepo repository.LimitRepository, customerRepo reposito
 func (u *limitUsecase) CreateLimit(input domain.Limit) error {
 	input.LimitNIK = utils.SanitizeString(input.LimitNIK)
 
+	input.LimitTenor = utils.SanitizeNumberInt(input.LimitTenor)
+
+	input.LimitAmount = utils.SanitizeNumberFloat64(input.LimitAmount)
+
 	if input.LimitNIK == "" || len(input.LimitNIK) != 16 {
 		return errors.New("invalid NIK")
 	}
@@ -50,6 +54,12 @@ func (u *limitUsecase) GetCustomerByNIK(nik string) (*domain.Customer, error) {
 
 func (u *limitUsecase) UpdateLimit(input domain.Limit) error {
 	input.LimitNIK = utils.SanitizeString(input.LimitNIK)
+
+	input.LimitTenor = utils.SanitizeNumberInt(input.LimitTenor)
+
+	input.LimitAmount = utils.SanitizeNumberFloat64(input.LimitAmount)
+	input.LimitUsedAmount = utils.SanitizeNumberFloat64(input.LimitUsedAmount)
+	input.LimitRemainingAmount = utils.SanitizeNumberFloat64(input.LimitRemainingAmount)
 
 	if input.LimitNIK != "" && len(input.LimitNIK) != 16 {
 		return errors.New("NIK must be 16 numeric characters")

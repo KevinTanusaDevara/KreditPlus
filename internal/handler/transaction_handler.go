@@ -141,11 +141,37 @@ func (h *TransactionHandler) GetTransactionByID(c *gin.Context) {
 		return
 	}
 
+	response := domain.TransactionResponse{
+		TransactionID:             transaction.TransactionID,
+		TransactionContractNumber: transaction.TransactionContractNumber,
+		TransactionNIK:            transaction.TransactionNIK,
+		NIKCustomer: domain.CustomerResponse{
+			CustomerNIK:      transaction.NIKCustomer.CustomerNIK,
+			CustomerFullName: transaction.NIKCustomer.CustomerFullName,
+		},
+		TransactionLimit: transaction.TransactionLimit,
+		IDLimit: domain.LimitResponse{
+			LimitID:     transaction.IDLimit.LimitID,
+			LimitAmount: transaction.IDLimit.LimitAmount,
+		},
+		TransactionOTR:         transaction.TransactionOTR,
+		TransactionAdminFee:    transaction.TransactionAdminFee,
+		TransactionInstallment: transaction.TransactionInstallment,
+		TransactionInterest:    transaction.TransactionInterest,
+		TransactionAssetName:   transaction.TransactionAssetName,
+		TransactionCreatedBy:   transaction.TransactionCreatedBy,
+		CreatedByUser: domain.UserResponse{
+			UserID:       transaction.CreatedByUser.UserID,
+			UserUsername: transaction.CreatedByUser.UserUsername,
+			UserRole:     transaction.CreatedByUser.UserRole,
+		},
+	}
+
 	utils.Logger.WithFields(logrus.Fields{
 		"transaction_id": transaction.TransactionID,
 	}).Info("Transaction retrieved successfully")
 
-	c.JSON(http.StatusOK, transaction)
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *TransactionHandler) UpdateTransaction(c *gin.Context) {
