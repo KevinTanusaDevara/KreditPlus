@@ -31,3 +31,19 @@ type TransactionInput struct {
 	TransactionInterest    float64 `json:"transaction_interest" validate:"required"`
 	TransactionAssetName   string  `json:"transaction_asset_name" validate:"required"`
 }
+
+type TransactionResponse struct {
+	TransactionID             uint             `json:"transaction_id"`
+	TransactionContractNumber string           `json:"transaction_contract_number"`
+	TransactionNIK            string           `json:"transaction_nik"`
+	NIKCustomer               CustomerResponse `json:"NIKCustomer"`
+	TransactionLimit          uint             `json:"transaction_limit"`
+	IDLimit                   LimitResponse    `json:"IDLimit"`
+	TransactionOTR            float64          `json:"transaction_otr"`
+	TransactionAdminFee       float64          `json:"transaction_admin_fee"`
+	TransactionInstallment    float64          `json:"transaction_installment"`
+	TransactionInterest       float64          `json:"transaction_interest"`
+	TransactionAssetName      string           `json:"transaction_asset_name"`
+	TransactionCreatedBy      uint             `json:"transaction_created_by"`
+	CreatedByUser             UserResponse     `json:"CreatedByUser"`
+}

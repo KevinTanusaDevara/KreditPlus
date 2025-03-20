@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -39,6 +40,11 @@ func (h *CustomerHandler) CreateCustomer(c *gin.Context) {
 
 	if err := utils.Validate.Struct(input); err != nil {
 		utils.Logger.Warnf("Validation error: %s", err.Error())
+		if strings.Contains(err.Error(), "CustomerBirthDate") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid birth date format"})
+			return
+		}
+
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

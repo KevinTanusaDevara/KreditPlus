@@ -4,6 +4,7 @@ import (
 	"errors"
 	"kreditplus/internal/domain"
 	"kreditplus/internal/repository"
+	"kreditplus/internal/utils"
 )
 
 type UserUsecase interface {
@@ -23,6 +24,10 @@ func NewUserUsecase(repo repository.UserRepository) UserUsecase {
 }
 
 func (u *userUsecase) CreateUser(input domain.User) error {
+	input.UserUsername = utils.SanitizeString(input.UserUsername)
+	input.UserPassword = utils.SanitizeString(input.UserPassword)
+	input.UserRole = utils.SanitizeString(input.UserRole)
+
 	existingUser, _ := u.repo.GetUserByUsername(input.UserUsername)
 	if existingUser != nil {
 		return errors.New("username already exists")
@@ -40,6 +45,22 @@ func (u *userUsecase) GetUserByID(id uint) (*domain.User, error) {
 }
 
 func (u *userUsecase) UpdateUser(input domain.User) error {
+	input.UserUsername = utils.SanitizeString(input.UserUsername)
+	input.UserPassword = utils.SanitizeString(input.UserPassword)
+	input.UserRole = utils.SanitizeString(input.UserRole)
+
+	existingUser, err := u.repo.GetUserByID(input.UserID)
+	if err != nil {
+		return errors.New("user not found")
+	}
+
+	if input.UserUsername != existingUser.UserUsername {
+		userWithSameUsername, _ := u.repo.GetUserByUsername(input.UserUsername)
+		if userWithSameUsername != nil {
+			return errors.New("username already exists")
+		}
+	}
+
 	return u.repo.UpdateUser(&input)
 }
 

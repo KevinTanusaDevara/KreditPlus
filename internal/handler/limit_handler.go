@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"kreditplus/internal/domain"
 	"kreditplus/internal/usecase"
 	"kreditplus/internal/utils"
@@ -187,13 +186,12 @@ func (h *LimitHandler) UpdateLimit(c *gin.Context) {
 	}
 
 	var input domain.EditLimitInput
-	if err := c.ShouldBind(&input); err != nil {
+	if err := c.ShouldBindJSON(&input); err != nil {
 		utils.Logger.Warn("Invalid request format for updating limit")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
 
-	fmt.Println(input)
 	if err := utils.Validate.Struct(input); err != nil {
 		utils.Logger.Warnf("Validation error: %s", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

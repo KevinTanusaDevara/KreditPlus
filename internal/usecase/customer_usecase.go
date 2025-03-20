@@ -4,6 +4,7 @@ import (
 	"errors"
 	"kreditplus/internal/domain"
 	"kreditplus/internal/repository"
+	"kreditplus/internal/utils"
 	"time"
 )
 
@@ -24,9 +25,21 @@ func NewCustomerUsecase(repo repository.CustomerRepository) CustomerUsecase {
 }
 
 func (u *customerUsecase) CreateCustomer(input domain.Customer) error {
+	input.CustomerNIK = utils.SanitizeString(input.CustomerNIK)
+	input.CustomerFullName = utils.SanitizeString(input.CustomerFullName)
+	input.CustomerLegalName = utils.SanitizeString(input.CustomerLegalName)
+	input.CustomerBirthPlace = utils.SanitizeString(input.CustomerBirthPlace)
+	input.CustomerKTPPhoto = utils.SanitizeString(input.CustomerKTPPhoto)
+	input.CustomerSelfiePhoto = utils.SanitizeString(input.CustomerSelfiePhoto)
+
+	input.CustomerBirthDate = utils.SanitizeDate(input.CustomerBirthDate)
+
+	input.CustomerSalary = utils.SanitizeNumberFloat64(input.CustomerSalary)
+
 	if input.CustomerNIK == "" || len(input.CustomerNIK) != 16 {
 		return errors.New("invalid NIK")
 	}
+
 	input.CustomerCreatedAt = time.Now()
 	return u.repo.CreateCustomer(&input)
 }
@@ -40,6 +53,17 @@ func (u *customerUsecase) GetCustomerByID(id uint) (*domain.Customer, error) {
 }
 
 func (u *customerUsecase) UpdateCustomer(input domain.Customer) error {
+	input.CustomerNIK = utils.SanitizeString(input.CustomerNIK)
+	input.CustomerFullName = utils.SanitizeString(input.CustomerFullName)
+	input.CustomerLegalName = utils.SanitizeString(input.CustomerLegalName)
+	input.CustomerBirthPlace = utils.SanitizeString(input.CustomerBirthPlace)
+	input.CustomerKTPPhoto = utils.SanitizeString(input.CustomerKTPPhoto)
+	input.CustomerSelfiePhoto = utils.SanitizeString(input.CustomerSelfiePhoto)
+
+	input.CustomerBirthDate = utils.SanitizeDate(input.CustomerBirthDate)
+
+	input.CustomerSalary = utils.SanitizeNumberFloat64(input.CustomerSalary)
+
 	if input.CustomerNIK != "" && len(input.CustomerNIK) != 16 {
 		return errors.New("NIK must be 16 numeric characters")
 	}

@@ -1,7 +1,10 @@
 package repository
 
 import (
+	"errors"
 	"kreditplus/internal/domain"
+	"kreditplus/internal/utils"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -9,7 +12,6 @@ import (
 type TransactionRepository interface {
 	WithTransaction(fn func(tx *gorm.DB) error) error
 	CreateTransactionWithTx(tx *gorm.DB, transaction *domain.Transaction) error
-	CreateTransaction(transaction *domain.Transaction) error
 	GetAllTransactions(transaction, offset int) ([]domain.Transaction, error)
 	GetTransactionByID(id uint) (*domain.Transaction, error)
 	UpdateTransactionWithTx(tx *gorm.DB, transaction *domain.Transaction) error
@@ -25,26 +27,38 @@ func NewTransactionRepository(db *gorm.DB) TransactionRepository {
 }
 
 func (r *transactionRepository) WithTransaction(fn func(tx *gorm.DB) error) error {
-	tx := r.db.Begin()
-	if tx.Error != nil {
-		return tx.Error
-	}
+	const maxRetries = 3
+	var err error
 
-	err := fn(tx)
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		tx := r.db.Begin()
+		if tx.Error != nil {
+			return tx.Error
+		}
+
+		err = fn(tx)
+		if err != nil {
+			tx.Rollback()
+
+			if err.Error() == "database is locked" || err.Error() == "deadlock detected" {
+				utils.Logger.Warnf("Deadlock detected. Retrying transaction %d/%d", attempt+1, maxRetries)
+				time.Sleep(time.Millisecond * 100)
+				continue
+			}
+			return err
+		}
+		return tx.Commit().Error
+	}
+	return errors.New("failed to process transaction after multiple retries: " + err.Error())
+}
+
+func (r *transactionRepository) CreateTransactionWithTx(tx *gorm.DB, transaction *domain.Transaction) error {
+	err := tx.Create(transaction).Error
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
-
-	return tx.Commit().Error
-}
-
-func (r *transactionRepository) CreateTransactionWithTx(tx *gorm.DB, transaction *domain.Transaction) error {
-	return tx.Create(transaction).Error
-}
-
-func (r *transactionRepository) CreateTransaction(transaction *domain.Transaction) error {
-	return r.db.Create(transaction).Error
+	return nil
 }
 
 func (r *transactionRepository) GetAllTransactions(limit, offset int) ([]domain.Transaction, error) {

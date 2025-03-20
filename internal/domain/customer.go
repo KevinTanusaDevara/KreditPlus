@@ -30,3 +30,8 @@ type CustomerInput struct {
 	CustomerBirthDate  string  `form:"customer_birth_date" validate:"required,datetime=2006-01-02"`
 	CustomerSalary     float64 `form:"customer_salary" validate:"required,gte=1000000,lte=100000000"`
 }
+
+type CustomerResponse struct {
+	CustomerNIK     string `json:"customer_nik"`
+	CustomerFullName string `json:"customer_full_name"`
+}

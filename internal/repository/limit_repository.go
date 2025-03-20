@@ -10,6 +10,7 @@ type LimitRepository interface {
 	CreateLimit(limit *domain.Limit) error
 	GetAllLimits(limit, offset int) ([]domain.Limit, error)
 	GetLimitByID(id uint) (*domain.Limit, error)
+	GetLimitByIDWithTx(tx *gorm.DB, id uint) (*domain.Limit, error)
 	GetLimitByNIKandTenorWithTx(tx *gorm.DB, nik string, tenor float64) (*domain.Limit, error)
 	UpdateLimitWithTx(tx *gorm.DB, limit *domain.Limit) error
 	UpdateLimit(limit *domain.Limit) error
@@ -54,11 +55,18 @@ func (r *limitRepository) GetLimitByID(id uint) (*domain.Limit, error) {
 	return &limit, nil
 }
 
+func (r *limitRepository) GetLimitByIDWithTx(tx *gorm.DB, id uint) (*domain.Limit, error) {
+	var limit domain.Limit
+	err := tx.Raw(`SELECT * FROM limits WHERE limit_id = ? FOR UPDATE`, id).Scan(&limit).Error
+	if err != nil {
+		return nil, err
+	}
+	return &limit, nil
+}
+
 func (r *limitRepository) GetLimitByNIKandTenorWithTx(tx *gorm.DB, nik string, tenor float64) (*domain.Limit, error) {
 	var limit domain.Limit
-	err := tx.Where("limit_nik = ? AND limit_tenor = ?", nik, tenor).
-		Order("limit_remaining_amount DESC").
-		First(&limit).Error
+	err := tx.Raw(`SELECT * FROM limits WHERE limit_nik = ? AND limit_tenor = ? FOR UPDATE`, nik, tenor).Scan(&limit).Error
 	if err != nil {
 		return nil, err
 	}

@@ -5,6 +5,7 @@ import (
 	"kreditplus/internal/domain"
 	"kreditplus/internal/middleware"
 	"kreditplus/internal/repository"
+	"kreditplus/internal/utils"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -23,9 +24,12 @@ func NewAuthUsecase(repo repository.AuthRepository) AuthUsecase {
 }
 
 func (u *authUsecase) Login(input domain.LoginInput) (*domain.AuthResponse, error) {
+	input.Username = utils.SanitizeString(input.Username)
+	input.Password = utils.SanitizeString(input.Password)
+
 	user, err := u.repo.FindUserByUsername(input.Username)
 	if err != nil {
-		return nil, errors.New("invalid username or password")
+		return nil, err
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.UserPassword), []byte(input.Password)); err != nil {
@@ -64,3 +68,4 @@ func (u *authUsecase) RefreshToken(refreshToken string) (*domain.AuthResponse, e
 		Message:      "New access token generated",
 	}, nil
 }
+
