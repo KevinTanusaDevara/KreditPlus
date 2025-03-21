@@ -34,6 +34,8 @@ func ConnectDB() {
 	}
 
 	for i := 0; i < 5; i++ {
+		fmt.Printf("Attempting to connect to database (attempt %d)...\n", i+1)
+
 		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 			Logger: logger.Default.LogMode(logMode),
 		})
@@ -43,12 +45,13 @@ func ConnectDB() {
 			sqlDB.SetMaxIdleConns(10)
 			sqlDB.SetMaxOpenConns(100)
 			sqlDB.SetConnMaxLifetime(30 * time.Minute)
+
 			fmt.Println("Database connected successfully!")
 			DB = db
 			return
 		}
 
-		fmt.Println("Retrying database connection... attempt:", i+1)
+		fmt.Println("Database connection failed:", err)
 		time.Sleep(3 * time.Second)
 	}
 

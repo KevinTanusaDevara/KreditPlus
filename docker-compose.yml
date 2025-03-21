@@ -1,0 +1,35 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:14
+    container_name: kreditplus-db
+    restart: always
+    environment:
+      POSTGRES_USER: kreditplus
+      POSTGRES_PASSWORD: kreditplus123
+      POSTGRES_DB: kreditplus_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kreditplus -d kreditplus_db"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+
+  app:
+    build: .
+    container_name: kreditplus-app
+    restart: always
+    environment:
+      DATABASE_URL: "postgres://kreditplus:kreditplus123@db:5432/kreditplus_db?sslmode=disable"
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
