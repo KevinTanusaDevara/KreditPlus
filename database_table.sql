@@ -16,7 +16,9 @@ CREATE TABLE customers (
     customer_ktp_photo TEXT NOT NULL,
     customer_selfie_photo TEXT NOT NULL,
     customer_created_by INT NOT NULL REFERENCES users(user_id),
-    customer_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    customer_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    customer_edited_by INT REFERENCES users(user_id),
+    customer_edited_at TIMESTAMP
 );
 
 CREATE TABLE limits (
@@ -27,7 +29,9 @@ CREATE TABLE limits (
     limit_used_amount DECIMAL(15,2) DEFAULT 0,
     limit_remaining_amount DECIMAL(15,2) NOT NULL,
     limit_created_by INT NOT NULL REFERENCES users(user_id),
-    limit_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    limit_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    limit_created_by INT REFERENCES users(user_id),
+    limit_created_at TIMESTAMP
 );
 
 CREATE TABLE transactions (
@@ -40,6 +44,9 @@ CREATE TABLE transactions (
     transaction_installment INT NOT NULL,
     transaction_interest DECIMAL(5,2) NOT NULL,
     transaction_asset_name VARCHAR(100) NOT NULL,
+    transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     transaction_created_by INT NOT NULL REFERENCES users(user_id),
-    transaction_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    transaction_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    transaction_edited_by INT REFERENCES users(user_id),
+    transaction_edited_at TIMESTAMP
 );
